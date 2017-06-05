@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 2.8.12)
 project(rapidcheck)
 enable_testing()
 
+
 option(RC_ENABLE_TESTS "Build RapidCheck tests" OFF)
 option(RC_ENABLE_EXAMPLES "Build RapidCheck examples" OFF)
 
@@ -17,7 +18,8 @@ else()
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Werror -Wno-missing-braces -std=c++11")
 endif()
 
-add_library(rapidcheck
+
+add_library(rapidcheck SHARED
   src/BeforeMinimalTestCase.cpp
   src/Check.cpp
   src/Classify.cpp
@@ -46,6 +48,8 @@ add_library(rapidcheck
   src/detail/TestMetadata.cpp
   src/detail/TestParams.cpp
   src/detail/Testing.cpp
+  src/gen/ContainerHelper.cpp
+  src/gen/GenDummy.cpp
   src/gen/Numeric.cpp
   src/gen/Text.cpp
   src/gen/detail/ExecHandler.cpp
@@ -63,6 +67,7 @@ else()
     APPEND_STRING PROPERTY COMPILE_FLAGS " -O3")
 endif()
 
+
 target_include_directories(rapidcheck PUBLIC include)
 
 add_subdirectory(ext)
@@ -76,3 +81,6 @@ if (RC_ENABLE_EXAMPLES)
 endif()
 
 add_subdirectory(extras)
+
+install(DIRECTORY "include/" DESTINATION "include" PATTERN ".*" EXCLUDE)
+install(TARGETS rapidcheck DESTINATION "lib")
