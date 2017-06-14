@@ -1,0 +1,88 @@
+#!/usr/bin/make -f
+# -*- makefile -*-
+include $(DISTRIBUTION_REFROOT)/opt/bb/share/bb-debhelper/bb-debhelper-macros.mk
+
+# receives the bitness as the first and flavor as the second argument
+# overridable input:
+#   DEBHELPER_CMAKE_ENV
+#   DEBHELPER_CMAKE_ARGS
+#   DEBHELPER_CMAKE_EXTRA_CPPFLAGS
+#   DEBHELPER_CMAKE_EXTRA_CFLAGS
+#   DEBHELPER_CMAKE_EXTRA_CXXFLAGS
+#   DEBHELPER_CMAKE_EXTRA_LDFLAGS
+#   DEBHELPER_CMAKE_ROOT
+#   DEBHELPER_$(1)BIT$(2)_CMAKE_ENV
+#   DEBHELPER_$(1)BIT$(2)_CMAKE_ARGS
+#   DEBHELPER_$(1)BIT$(2)_CMAKE_EXTRA_CPPFLAGS
+#   DEBHELPER_$(1)BIT$(2)_CMAKE_EXTRA_CFLAGS
+#   DEBHELPER_$(1)BIT$(2)_CMAKE_EXTRA_CXXFLAGS
+#   DEBHELPER_$(1)BIT$(2)_CMAKE_EXTRA_LDFLAGS
+define DEBHELPER_BIARCH_BUILD
+
+BB_DEBHELPER_CLEAN_TARGETS+=clean-$(1)$(2)
+clean-$(1)$(2):
+	rm -rf build$(1)$(2)
+	rm -rf debian/tmp$(1)$(2)
+
+# We concatenate what would be in CPPFLAGS on CFLAGS and CXXFLAGS
+# because of http://public.kitware.com/Bug/view.php?id=12928
+# CPPFLAGS="-I$$(PREFIX)/include $$(DEBHELPER_$(1)BIT$(2)_CMAKE_EXTRA_CPPFLAGS) $$(DEBHELPER_CMAKE_EXTRA_CPPFLAGS)"
+#	find . -type f \( -name "*.cpp" -or -name "*.h*" \) -exec $(DISTRIBUTION_REFROOT)/opt/bb/bin/std2bsl --no-backup --quiet {} +
+
+debian/configure$(1)$(2)-stamp:
+	find include/ -type f \( -name "*.cpp" -or -name "*.h*" \) -exec $(DISTRIBUTION_REFROOT)/opt/bb/bin/std2bsl --no-backup --quiet {} +	
+	find src/ -type f \( -name "*.cpp" -or -name "*.h*" \) -exec $(DISTRIBUTION_REFROOT)/opt/bb/bin/std2bsl --no-backup --quiet {} +	
+	find ext/ -type f \( -name "*.cpp" -or -name "*.h*" \) -exec $(DISTRIBUTION_REFROOT)/opt/bb/bin/std2bsl --no-backup --quiet {} +	
+	find extras/ -type f \( -name "*.cpp" -or -name "*.h*" \) -exec $(DISTRIBUTION_REFROOT)/opt/bb/bin/std2bsl --no-backup --quiet {} +	
+	xargs -a bsl_custom.txt -I name cp custom_bsl/name ./name
+	mkdir -p build$(1)$(2)
+	cd build$(1)$(2) &&  \
+	  $$(DEBHELPER_CMAKE_ENV) \
+	  $$(DEBHELPER_$(1)BIT$(2)_CMAKE_ENV) \
+	  PATH=$$(LIBDIR_BIN_$(1)BIT):$(PATH) \
+	  OBJECT_MODE=$(1) CC="$$(CC)" CXX="$$(CXX)" \
+	  CFLAGS="$$(CFLAGS_SET_$(1)BIT) $$(BLOOMBERG_CFLAGS) $$(DEBHELPER_$(1)BIT$(2)_CMAKE_EXTRA_CFLAGS) $$(DEBHELPER_CMAKE_EXTRA_CFLAGS) -I$$(DISTRIBUTION_REFROOT)$$(PREFIX)/include $$(DEBHELPER_$(1)BIT$(2)_CMAKE_EXTRA_CPPFLAGS) $$(DEBHELPER_CMAKE_EXTRA_CPPFLAGS) $$(BLOOMBERG_ARCHTUNE_$(1))" \
+	  CXXFLAGS="$$(CXXFLAGS_SET_$(1)BIT) $$(BLOOMBERG_CXXFLAGS) $$(DEBHELPER_$(1)BIT$(2)_CMAKE_EXTRA_CXXFLAGS) $$(DEBHELPER_CMAKE_EXTRA_CXXFLAGS) -I$$(DISTRIBUTION_REFROOT)$$(PREFIX)/include $$(DEBHELPER_$(1)BIT$(2)_CMAKE_EXTRA_CPPFLAGS) $$(DEBHELPER_CMAKE_EXTRA_CPPFLAGS) $$(BLOOMBERG_ARCHTUNE_$(1))" \
+	  LDFLAGS="$$(LDFLAGS_SET_$(1)BIT) -L$$(DISTRIBUTION_REFROOT)$$(PREFIX)/lib$(filter 64,$(1)) $$(BLOOMBERG_LDFLAGS) $$(BLOOMBERG_RPATH_$(1)BIT) $$(DEBHELPER_$(1)BIT$(2)_CMAKE_EXTRA_LDFLAGS) $$(DEBHELPER_CMAKE_EXTRA_LDFLAGS)" \
+	  $$(DISTRIBUTION_REFROOT)$$(PREFIX)/bin/cmake $(if $(DEBHELPER_CMAKE_ROOT),$(DEBHELPER_CMAKE_ROOT),..) \
+	  -DCMAKE_INSTALL_PREFIX=$$(PREFIX) \
+	  -DCMAKE_INSTALL_RPATH=$$(PREFIX)/lib$(filter 64,$(1)) \
+	  -DCMAKE_INSTALL_LIBDIR=lib$(filter 64,$(1)) \
+	  $$(DEBHELPER_$(1)BIT$(2)_CMAKE_ARGS) \
+	  -DCMAKE_PREFIX_PATH=$$(DISTRIBUTION_REFROOT)$$(PREFIX) \
+	  $$(DEBHELPER_CMAKE_ARGS)
+	touch $$@
+
+BB_DEBHELPER_BUILD_TARGETS+=debian/build$(1)$(2)-stamp
+debian/build$(1)$(2)-stamp: debian/configure$(1)$(2)-stamp
+	+PATH="$$(LIBDIR_BIN_$(1)BIT):$$(PATH)" \
+	  OBJECT_MODE="$(1)" $(MAKE) -C "build$(1)$(2)" VERBOSE=1
+	mkdir -p debian/tmp$(1)$(2)
+	+PATH="$$(LIBDIR_BIN_$(1)BIT):$$(PATH)" \
+	  OBJECT_MODE=$(1) \
+	  $(MAKE) -C "build$(1)$(2)" install \
+	  DESTDIR="$$(shell pwd)/debian/tmp$(1)$(2)" VERBOSE=1
+	touch $$@
+
+endef
+
+
+DEBHELPER_CONFIGURE_ARGS=--enable-static --enable-shared
+# We have to provide our own intl on non-Linux. Then we have to make cxpm link with it.
+ifneq ($(DEB_HOST_ARCH_OS),linux)
+DEBHELPER_CONFIGURE_EXTRA_LDFLAGS=-lintl
+endif
+
+# Build shared and static libraries
+DEBHELPER_CONFIGURE_ARGS=--enable-static --enable-shared
+
+# Build 32- and 64-bit
+$(eval $(call DEBHELPER_BIARCH_BUILD,32))
+$(eval $(call DEBHELPER_BIARCH_BUILD,64))
+
+# Produce dev package
+
+$(eval $(call DEBHELPER_BIARCH_LIBRARY_DEVPACKAGE,librapidcheck-dev))
+
+include /opt/bb/share/cmake-debhelper/cmake-debhelper-rules.mk
+

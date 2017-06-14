@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8.12)
+cmake_minimum_required(VERSION 3.0.0)
 project(rapidcheck)
 enable_testing()
 
@@ -19,7 +19,7 @@ else()
 endif()
 
 
-add_library(rapidcheck SHARED
+add_library(rapidcheck STATIC
   src/BeforeMinimalTestCase.cpp
   src/Check.cpp
   src/Classify.cpp
@@ -83,4 +83,8 @@ endif()
 add_subdirectory(extras)
 
 install(DIRECTORY "include/" DESTINATION "include" PATTERN ".*" EXCLUDE)
-install(TARGETS rapidcheck DESTINATION "lib")
+if( CMAKE_SIZEOF_VOID_P EQUAL 8 )
+    install(TARGETS rapidcheck DESTINATION "lib64")
+else( CMAKE_SIZEOF_VOID_P EQUAL 8 ) 
+    install(TARGETS rapidcheck DESTINATION "lib")
+endif( CMAKE_SIZEOF_VOID_P EQUAL 8 )

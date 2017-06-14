@@ -1,5 +1,7 @@
 #include "Serialization.h"
 
+#include <algorithm>
+#include <type_traits>
 #include <limits>
 
 namespace rc {
