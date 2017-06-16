@@ -1,7 +1,7 @@
 #pragma once
 
+#include <bsl_functional.h>
 #include <bsl_ostream.h>
-#include <bsl_cstdlib.h>
 #include <bsl_cstdint.h>
 #include <bsl_array.h>
 #include <bsl_limits.h>
