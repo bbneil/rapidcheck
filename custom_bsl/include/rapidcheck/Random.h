@@ -1,9 +1,10 @@
 #pragma once
 
-#include <array>
-#include <cstdint>
-#include <cstdlib>
-#include <limits>
+#include <bsl_functional.h>
+#include <bsl_ostream.h>
+#include <bsl_cstdint.h>
+#include <bsl_array.h>
+#include <bsl_limits.h>
 
 namespace rc {
 
@@ -13,7 +14,7 @@ namespace rc {
 class Random {
   friend bool operator==(const Random &lhs, const Random &rhs);
   friend bool operator<(const Random &lhs, const Random &rhs);
-  friend std::ostream &operator<<(std::ostream &os, const Random &random);
+  friend bsl::ostream &operator<<(bsl::ostream &os, const Random &random);
 
   template <typename Iterator>
   friend Iterator serialize(const Random &random, Iterator output);
@@ -23,7 +24,7 @@ class Random {
 
 public:
   /// Key type
-  using Key = std::array<uint64_t, 4>;
+  using Key = bsl::array<uint64_t, 4>;
 
   /// Type of a generated random number.
   using Number = uint64_t;
@@ -46,13 +47,13 @@ public:
   Number next();
 
 private:
-  using Block = std::array<uint64_t, 4>;
+  using Block = bsl::array<uint64_t, 4>;
 
   using Bits = uint64_t;
-  static constexpr auto kBits = std::numeric_limits<Bits>::digits;
+  static constexpr auto kBits = bsl::numeric_limits<Bits>::digits;
 
   using Counter = uint64_t;
-  static constexpr auto kCounterMax = std::numeric_limits<Counter>::max();
+  static constexpr auto kCounterMax = bsl::numeric_limits<Counter>::max();
 
   void append(bool x);
   void mash(Block &output);
@@ -68,7 +69,7 @@ bool operator!=(const Random &lhs, const Random &rhs);
 
 } // namespace rc
 
-namespace std {
+namespace bsl {
 
 template <>
 struct hash<rc::Random> {
@@ -80,6 +81,6 @@ struct hash<rc::Random> {
   }
 };
 
-} // namespace std
+} // namespace bsl
 
 #include "Random.hpp"

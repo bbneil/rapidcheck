@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8.12)
+cmake_minimum_required(VERSION 3.0.0)
 project(rapidcheck)
 enable_testing()
 
@@ -17,42 +17,9 @@ else()
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Werror -Wno-missing-braces -std=c++11")
 endif()
 
-add_library(rapidcheck
-  src/BeforeMinimalTestCase.cpp
-  src/Check.cpp
-  src/Classify.cpp
-  src/GenerationFailure.cpp
-  src/Log.cpp
-  src/Random.cpp
-  src/Show.cpp
-  src/detail/Any.cpp
-  src/detail/Assertions.cpp
-  src/detail/Base64.cpp
-  src/detail/Configuration.cpp
-  src/detail/DefaultTestListener.cpp
-  src/detail/FrequencyMap.cpp
-  src/detail/ImplicitParam.cpp
-  src/detail/LogTestListener.cpp
-  src/detail/MapParser.cpp
-  src/detail/MulticastTestListener.cpp
-  src/detail/ParseException.cpp
-  src/detail/Platform.cpp
-  src/detail/Property.cpp
-  src/detail/PropertyContext.cpp
-  src/detail/ReproduceListener.cpp
-  src/detail/Results.cpp
-  src/detail/Serialization.cpp
-  src/detail/StringSerialization.cpp
-  src/detail/TestMetadata.cpp
-  src/detail/TestParams.cpp
-  src/detail/Testing.cpp
-  src/gen/Numeric.cpp
-  src/gen/Text.cpp
-  src/gen/detail/ExecHandler.cpp
-  src/gen/detail/GenerationHandler.cpp
-  src/gen/detail/Recipe.cpp
-  src/gen/detail/ScaleInteger.cpp
-  )
+file(GLOB_RECURSE src_folder "src/*.cpp")
+
+add_library(rapidcheck STATIC ${src_folder})
 
 # Random is used a LOT so it should preferrably be really fast.
 if(MSVC)
@@ -63,9 +30,8 @@ else()
     APPEND_STRING PROPERTY COMPILE_FLAGS " -O3")
 endif()
 
-target_include_directories(rapidcheck PUBLIC include)
 
-add_subdirectory(ext)
+target_include_directories(rapidcheck PUBLIC include)
 
 if (RC_ENABLE_TESTS)
   add_subdirectory(test)
@@ -76,3 +42,10 @@ if (RC_ENABLE_EXAMPLES)
 endif()
 
 add_subdirectory(extras)
+
+install(DIRECTORY "include/" DESTINATION "include" PATTERN ".*" EXCLUDE)
+if( CMAKE_SIZEOF_VOID_P EQUAL 8 )
+    install(TARGETS rapidcheck DESTINATION "lib64")
+else( CMAKE_SIZEOF_VOID_P EQUAL 8 ) 
+    install(TARGETS rapidcheck DESTINATION "lib")
+endif( CMAKE_SIZEOF_VOID_P EQUAL 8 )

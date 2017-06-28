@@ -1,0 +1,163 @@
+#!/usr/bin/make -f
+# -*- makefile -*-
+include $(DISTRIBUTION_REFROOT)/opt/bb/share/bb-debhelper/bb-debhelper-macros.mk
+
+# overridable input:
+#   DEBHELPER_CMAKE_ENV
+#   DEBHELPER_CMAKE_ARGS
+#   DEBHELPER_CMAKE_EXTRA_CPPFLAGS
+#   DEBHELPER_CMAKE_EXTRA_CFLAGS
+#   DEBHELPER_CMAKE_EXTRA_CXXFLAGS
+#   DEBHELPER_CMAKE_EXTRA_LDFLAGS
+#   DEBHELPER_CMAKE_ROOT
+#   DEBHELPER_$(1)BIT$(2)_CMAKE_ENV
+#   DEBHELPER_$(1)BIT$(2)_CMAKE_ARGS
+#   DEBHELPER_$(1)BIT$(2)_CMAKE_EXTRA_CPPFLAGS
+#   DEBHELPER_$(1)BIT$(2)_CMAKE_EXTRA_CFLAGS
+#   DEBHELPER_$(1)BIT$(2)_CMAKE_EXTRA_CXXFLAGS
+#   DEBHELPER_$(1)BIT$(2)_CMAKE_EXTRA_LDFLAGS
+
+
+DEBHELPER_CMAKE_EXTRA_CPPFLAGS=-D BSLS_LIBRARYFEATURES_HAS_C99_LIBRARY=1 -D BSLS_LIBRARYFEATURES_HAS_CPP11_BASELINE_LIBRARY=1
+DEBHELPER_CMAKE_EXTRA_LDFLAGS=
+
+
+#Installs the dpkg and if installing the BSL version, moves the headers and libraries to their respective robo directories.
+define BIARCH_LIBRARY_DEVPACKAGE
+
+BB_DEBHELPER_CLEAN_TARGETS+=clean-$(1)
+clean-$(1):
+	rm -f debian/$(1).dirs \
+	      debian/$(1).install-32 \
+	      debian/$(1).install-64 \
+	      debian/$(1).install-headers
+	bb-dh-clean --package $(1)
+
+debian/$(1)-prepare-stamp:
+
+ifeq ($(2),BSL)
+	mkdir -p debian/tmp32$(2)$(PREFIX)/include/robo
+	mkdir -p debian/tmp64$(2)$(PREFIX)/include/robo
+	
+	find debian/tmp32$(2)$(PREFIX)/include -mindepth 1 -maxdepth 1 | grep -v robo | xargs -i mv {} debian/tmp32$(2)$(PREFIX)/include/robo
+	find debian/tmp64$(2)$(PREFIX)/include -mindepth 1 -maxdepth 1 | grep -v robo | xargs -i mv {} debian/tmp64$(2)$(PREFIX)/include/robo
+	
+	mkdir -p debian/tmp32$(2)$(PREFIX)/lib/robo
+	mkdir -p debian/tmp64$(2)$(PREFIX)/lib64/robo
+	for lib in debian/tmp32$(2)$(PREFIX)/lib/*.a debian/tmp64$(2)$(PREFIX)/lib64/*.a; do \
+		mv $$$$lib $$$$(dirname $$$$lib)/robo; \
+		ln -s robo/$$$$(basename $$$$lib) $$$${lib%.a}.bsl.a; \
+	done 
+endif
+
+	bb-dh-scaninstall --package $(1) --type dev --source32 debian/tmp32$(2) --source64 debian/tmp64$(2)
+	bb-dh-dirs --package $(1)
+	bb-dh-install --package $(1) \
+	     --source debian/tmp32$(2) --install debian/$(1).install-32
+	bb-dh-install --package $(1) \
+	     --source debian/tmp64$(2) --install debian/$(1).install-64
+	bb-dh-install-headers --package $(1) \
+	     --source32 debian/tmp32$(2) --source64 debian/tmp64$(2)
+	touch $$@
+
+BB_DEBHELPER_BINARY_TARGETS+=debian/$(1)-binary-stamp
+debian/$(1)-binary-stamp: debian/$(1)-prepare-stamp
+	bb-dh-binary --package $(1)
+	touch $$@
+
+
+endef
+
+#Builds the 64/32 bit version of the library based on the first argument, and the STD/BSL version of the library based on the second argument.
+
+#When building BSL versions, adds .cpp files for rapidcheck.h and rapidcheck/state.h to ensure header correctness after conversion to BSL.
+#All BSL builds have a dependency on build-std, to ensure all STD builds to be built first, before building BSL (since building BSL will change
+#the source and header files)
+
+define BIARCH_VERSION_BUILD
+
+BB_DEBHELPER_CLEAN_TARGETS+=clean-$(1)$(2)
+clean-$(1)$(2):
+	rm -rf build$(1)$(2)
+	rm -rf debian/tmp$(1)$(2)
+
+
+ifeq ($(2),BSL)
+debian/configure$(1)$(2)-stamp: build-std 
+	find include/ src/ extras/ -type f \( -name "*.cpp" -or -name "*.h*" \) -exec ./std2bsl --no-backup --quiet --keep-std ignore.config {} +	
+	xargs -a bsl_custom.txt -I name cp custom_bsl/name ./name 
+	echo "#include <rapidcheck.h>" > src/rapidcheck.cpp
+	echo "#include <rapidcheck/state.h>" > src/state.cpp
+else
+debian/configure$(1)$(2)-stamp:
+endif
+	mkdir -p build$(1)$(2)
+	cd build$(1)$(2) &&  \
+	  $$(DEBHELPER_CMAKE_ENV) \
+	  $$(DEBHELPER_$(1)BIT$(2)_CMAKE_ENV) \
+	  PATH=$$(LIBDIR_BIN_$(1)BIT):$(PATH) \
+	  OBJECT_MODE=$(1) CC="$$(CC)" CXX="$$(CXX)" \
+	  CFLAGS="$$(CFLAGS_SET_$(1)BIT) $$(BLOOMBERG_CFLAGS) $$(DEBHELPER_$(1)BIT$(2)_CMAKE_EXTRA_CFLAGS) $$(DEBHELPER_CMAKE_EXTRA_CFLAGS) -I$$(DISTRIBUTION_REFROOT)$$(PREFIX)/include $$(DEBHELPER_$(1)BIT$(2)_CMAKE_EXTRA_CPPFLAGS) $$(DEBHELPER_CMAKE_EXTRA_CPPFLAGS) $$(BLOOMBERG_ARCHTUNE_$(1))" \
+	  CXXFLAGS="$$(CXXFLAGS_SET_$(1)BIT) $$(BLOOMBERG_CXXFLAGS) $$(DEBHELPER_$(1)BIT$(2)_CMAKE_EXTRA_CXXFLAGS) $$(DEBHELPER_CMAKE_EXTRA_CXXFLAGS) -I$$(DISTRIBUTION_REFROOT)$$(PREFIX)/include $$(DEBHELPER_$(1)BIT$(2)_CMAKE_EXTRA_CPPFLAGS) $$(DEBHELPER_CMAKE_EXTRA_CPPFLAGS) $$(BLOOMBERG_ARCHTUNE_$(1))" \
+	  LDFLAGS="$$(LDFLAGS_SET_$(1)BIT) -L$$(DISTRIBUTION_REFROOT)$$(PREFIX)/lib$(filter 64,$(1)) $$(BLOOMBERG_LDFLAGS) $$(BLOOMBERG_RPATH_$(1)BIT) $$(DEBHELPER_$(1)BIT$(2)_CMAKE_EXTRA_LDFLAGS) $$(DEBHELPER_CMAKE_EXTRA_LDFLAGS)" \
+	  $$(DISTRIBUTION_REFROOT)$$(PREFIX)/bin/cmake $(if $(DEBHELPER_CMAKE_ROOT),$(DEBHELPER_CMAKE_ROOT),..) \
+	  -DCMAKE_INSTALL_PREFIX=$$(PREFIX) \
+	  -DCMAKE_INSTALL_RPATH=$$(PREFIX)/lib$(filter 64,$(1)) \
+	  -DCMAKE_INSTALL_LIBDIR=lib$(filter 64,$(1)) \
+	  $$(DEBHELPER_$(1)BIT$(2)_CMAKE_ARGS) \
+	  -DCMAKE_PREFIX_PATH=$$(DISTRIBUTION_REFROOT)$$(PREFIX) \
+	  $$(DEBHELPER_CMAKE_ARGS)
+	touch $$@
+
+
+ifeq ($(2),BSL)
+BSL_BUILD_TARGETS+=debian/build$(1)$(2)-stamp
+else
+STD_BUILD_TARGETS+=debian/build$(1)$(2)-stamp
+endif
+
+debian/build$(1)$(2)-stamp: debian/configure$(1)$(2)-stamp
+	+PATH="$$(LIBDIR_BIN_$(1)BIT):$$(PATH)" \
+	  OBJECT_MODE="$(1)" $(MAKE) -C "build$(1)$(2)" VERBOSE=1
+	mkdir -p debian/tmp$(1)$(2)
+	+PATH="$$(LIBDIR_BIN_$(1)BIT):$$(PATH)" \
+	  OBJECT_MODE=$(1) \
+	  $(MAKE) -C "build$(1)$(2)" install \
+	  DESTDIR="$$(shell pwd)/debian/tmp$(1)$(2)" VERBOSE=1
+	touch $$@
+
+endef
+
+
+
+DEBHELPER_CONFIGURE_ARGS=--enable-static --enable-shared
+# We have to provide our own intl on non-Linux. Then we have to make cxpm link with it.
+ifneq ($(DEB_HOST_ARCH_OS),linux)
+DEBHELPER_CONFIGURE_EXTRA_LDFLAGS=-lintl
+endif
+
+# Build shared and static libraries
+DEBHELPER_CONFIGURE_ARGS=--enable-static --enable-shared
+
+
+
+# Build 32- and 64-bit, and STD and BSL versions
+
+$(foreach bits,32 64, \
+  $(foreach suite,STD BSL, \
+    $(eval $(call BIARCH_VERSION_BUILD,$(bits),$(suite))) \
+  ) \
+)
+
+
+build-std : $(STD_BUILD_TARGETS)
+build-bsl : $(BSL_BUILD_TARGETS)
+
+BB_DEBHELPER_BUILD_TARGETS+=build-bsl build-std
+
+
+$(eval $(call BIARCH_LIBRARY_DEVPACKAGE,librapidcheck-dev,STD))
+$(eval $(call BIARCH_LIBRARY_DEVPACKAGE,librapidcheck-robo-dev,BSL))
+
+include /opt/bb/share/cmake-debhelper/cmake-debhelper-rules.mk
+

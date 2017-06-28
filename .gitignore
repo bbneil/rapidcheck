@@ -3,5 +3,14 @@ GPATH
 GRTAGS
 GTAGS
 TAGS
+install_manifest.txt
 ext/gmock
 ext/boost
+*.cmake
+*.a
+*.so
+*.sw*
+test.out
+CMake*
+*Makefile
+!*CMakeLists.txt
